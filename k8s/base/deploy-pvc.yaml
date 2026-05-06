@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: odoo-deployment-001
+  namespace: odoo
+  labels:
+    app.kubernetes.io/name: odoo
+    app.kubernetes.io/instance: main
+    app.kubernetes.io/version: v1
+spec:
+  minReadySeconds: 10
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: odoo
+      app.kubernetes.io/version: v1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: odoo
+        app.kubernetes.io/instance: main
+        app.kubernetes.io/version: v1
+    spec:
+      securityContext:
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+
+      volumes:
+      - name: odoo-web-pvc-001
+        persistentVolumeClaim:
+          claimName: odoo-web-pvc-001
+      - name: odoo-config
+        configMap:
+          name: odoo-config-002
+
+      containers:
+      - name: odoo
+        image: odoo:19.0
+        imagePullPolicy: IfNotPresent
+        ports:
+          - containerPort: 8069
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "1Gi"
+          limits:
+            cpu: "2000m"
+            memory: "3Gi"
+
+        env:
+        - name: PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: odoo-secret-001
+              key: PASSWORD
+
+        startupProbe:
+          httpGet:
+            path: /web/health?db_server_status=1
+            port: 8069
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 30
+
+        readinessProbe:
+          httpGet:
+            path: /web/login
+            port: 8069
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 6
+
+        livenessProbe:
+          tcpSocket:
+            port: 8069
+          initialDelaySeconds: 180
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+        volumeMounts:
+        - mountPath: /var/lib/odoo
+          name: odoo-web-pvc-001
+        - mountPath: /etc/odoo/odoo.conf
+          name: odoo-config
+          subPath: odoo.conf
+
+        securityContext:
+          allowPrivilegeEscalation: false
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: odoo-web-pvc-001
+  namespace: odoo
+  labels:
+    app.kubernetes.io/name: odoo
+    app.kubernetes.io/instance: main
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 12Gi

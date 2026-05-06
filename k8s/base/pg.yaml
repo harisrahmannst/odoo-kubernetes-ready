@@ -1,0 +1,167 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: odoo-test
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/instance: postgres-001
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret-001
+  namespace: odoo-test
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/instance: postgres-001
+type: Opaque
+stringData:
+  POSTGRES_PASSWORD: "<CHANGE_ME>"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config-001
+  namespace: odoo-test
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/instance: postgres-001
+data:
+  POSTGRES_DB: "postgres"
+  POSTGRES_USER: "<CHANGE_ME>"
+  PGDATA: "/var/lib/postgresql/data/pgdata"
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-001
+  namespace: odoo-test
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/instance: postgres-001
+spec:
+  serviceName: db-svc-001
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-001
+  template:
+    metadata:
+      labels:
+        app: postgres-001
+        app.kubernetes.io/name: postgres
+        app.kubernetes.io/instance: postgres-001
+    spec:
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+      containers:
+      - name: postgres
+        image: postgres:15
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 5432
+          name: postgres
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              name: postgres-config-001
+              key: POSTGRES_USER
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: postgres-config-001
+              key: POSTGRES_DB
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret-001
+              key: POSTGRES_PASSWORD
+        - name: PGDATA
+          valueFrom:
+            configMapKeyRef:
+              name: postgres-config-001
+              key: PGDATA
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1"
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - pg_isready -U postgres
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - pg_isready -U postgres
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          timeoutSeconds: 5
+          failureThreshold: 3
+        startupProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - pg_isready -U postgres
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 60
+        volumeMounts:
+        - name: postgres-data
+          mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+  - metadata:
+      name: postgres-data
+      labels:
+        app.kubernetes.io/name: postgres
+        app.kubernetes.io/instance: postgres-001
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 6Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: db-svc-001
+  namespace: odoo-test
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/instance: postgres-001
+spec:
+  clusterIP: None
+  selector:
+    app: postgres-001
+  ports:
+  - name: postgres
+    port: 5432
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: postgres-pdb-001
+  namespace: odoo-test
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/instance: postgres-001
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: postgres-001

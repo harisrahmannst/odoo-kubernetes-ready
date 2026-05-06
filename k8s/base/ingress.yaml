@@ -1,0 +1,46 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-odoo-app-001
+  namespace: odoo
+  labels:
+    app.kubernetes.io/name: odoo
+    app.kubernetes.io/instance: main
+  annotations:
+    nginx.ingress.kubernetes.io/add-headers: 'Strict-Transport-Security: max-age=31536000; includeSubDomains'
+    nginx.ingress.kubernetes.io/force-ssl-redirect: 'true'
+    nginx.ingress.kubernetes.io/gzip: 'on'
+    nginx.ingress.kubernetes.io/gzip-types: >-
+      text/css text/scss text/plain text/xml application/xml application/json
+      application/javascript
+    nginx.ingress.kubernetes.io/http2-push-preload: 'true'
+    nginx.ingress.kubernetes.io/proxy-body-size: 9096M
+    nginx.ingress.kubernetes.io/connection-proxy-header: keep-alive
+    nginx.ingress.kubernetes.io/proxy-buffer-size: 8k
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: '3600'
+    nginx.ingress.kubernetes.io/proxy-max-temp-file-size: 1024m
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '3600'
+    nginx.ingress.kubernetes.io/proxy-send-timeout: '3600'
+    nginx.ingress.kubernetes.io/proxy-cookie-flags: 'session_id: samesite=lax; secure'
+    nginx.ingress.kubernetes.io/ssl-protocols: TLSv1.2 TLSv1.3
+    nginx.ingress.kubernetes.io/ssl-redirect: 'true'
+    nginx.ingress.kubernetes.io/ssl_prefer_server_ciphers: 'off'
+    nginx.ingress.kubernetes.io/ssl_session_timeout: 30m
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - odoo.example.com
+    secretName: odoo-tls-secret
+  rules:
+  - host: odoo.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: odoo-service-001
+            port:
+              number: 80

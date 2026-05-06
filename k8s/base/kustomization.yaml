@@ -1,0 +1,6 @@
+resources:
+  - deploy-pvc.yaml
+  - ingress.yaml
+  - secret-configmap.yaml
+  - svc-hpa.yaml
+  - pg.yaml
